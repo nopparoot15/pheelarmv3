@@ -242,8 +242,7 @@ async def on_message(message: discord.Message):
     🕒 {format_thai_datetime(now)}
     """
     
-    messages = await build_chat_context(redis_instance, message.author.id, cleaned_text, system_prompt)
-
+    messages = await build_chat_context(redis_instance, message.author.id, cleaned_text, system_prompt, limit=3)
 
     async with message.channel.typing():
         notify = None
