@@ -55,30 +55,21 @@ def clean_output_text(text: str) -> str:
     # ✅ bullet: *, -, • → • (ถ้าขึ้นต้นบรรทัด)
     text = re.sub(r'(?m)^[\*\-\u2022]\s+', '• ', text)
 
-    # ✅ เชื่อมเลขลำดับกับเนื้อหา เช่น "1.\nข้อความ" → "1. ข้อความ"
-    text = re.sub(r'(?<=^\d\.)\n(?=\S)', ' ', text, flags=re.MULTILINE)
-
     # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
     # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
     text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1 <\2>', text)
     text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
-    text = re.sub(r'(?m)^(\d\.)\s*\n(\S)', r'\1 \2', text)
-    
+
     # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
-    text = re.sub(
-        fr'(?<!{safe_ends})\n(?!{safe_starts}|\n)',
-        ' ',
-        text
-    )
+    text = re.sub(fr'(?<!{safe_ends})\n(?!{safe_starts}|\n)', ' ', text)
 
     # ✅ แบ่งย่อหน้าให้สมดุล (~40 คำ/ย่อหน้า)
     sentences = re.split(r'(?<=[.!?])\s+', text)
     new_text, current_length = '', 0
-
     for sentence in sentences:
         sentence_length = len(sentence.split())
         if current_length + sentence_length > 40:
@@ -88,8 +79,12 @@ def clean_output_text(text: str) -> str:
             new_text += sentence.strip() + " "
             current_length += sentence_length
 
-    return restore_blocks(new_text, saved_blocks).strip()
+    text = restore_blocks(new_text, saved_blocks)
 
+    # ✅ เชื่อมเลขลำดับที่แยกบรรทัด เช่น "6.\nเนื้อหา" → "6. เนื้อหา"
+    text = re.sub(r'(?m)^(\d\.)\s*\n+(\S)', r'\1 \2', text)
+
+    return text.strip()
 
 def clean_url(url: Optional[str]) -> str:
     """ลบ \n \r ออกจาก URL"""
