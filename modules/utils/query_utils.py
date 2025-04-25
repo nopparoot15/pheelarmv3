@@ -134,6 +134,8 @@ async def get_openai_response(
         "ถ้ามีอะไรเพิ่มเติมที่อยากรู้ บอกได้เลย",
     ]
 
+    did_fallback = False
+
     for attempt in range(max_retries):
         try:
             logger.info(f"🔁 Attempt {attempt + 1}: using model {model}")
@@ -150,7 +152,7 @@ async def get_openai_response(
             content = response.choices[0].message.content.strip()
             response_text = content.lower()
 
-            if use_web_fallback and any(phrase in response_text for phrase in fallback_phrases):
+            if use_web_fallback and not did_fallback and any(phrase in response_text for phrase in fallback_phrases):
                 query = messages[-1]["content"]
                 if any(botname in query.lower() for botname in ["พี่หลาม", "พรี่หลาม", "คุณหลาม", "gpt", "บอท"]):
                     logger.info("🧠 เป็นคำถามเกี่ยวกับบอท ไม่ fallback ไปหา Google")
@@ -166,7 +168,8 @@ async def get_openai_response(
                     })
 
                     logger.info(f"🔁 Fallback with model {fallback_model}")
-                    
+                    did_fallback = True
+
                     fallback_messages = messages[-5:]
                     if fallback_model.endswith("-search-preview"):
                         fallback_messages = [
@@ -191,7 +194,7 @@ async def get_openai_response(
             # ✅ จัดการลิงก์: เก็บไว้แต่ไม่ให้ preview
             content = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", content)
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
-            content = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", content)
+            content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
 
             return format_for_readability(clean_output_text(content))
 
@@ -201,4 +204,3 @@ async def get_openai_response(
 
     logger.error("⚠️ เกินจำนวน retry ที่กำหนดสำหรับ OpenAI API")
     return "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า"
-
