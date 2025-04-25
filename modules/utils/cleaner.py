@@ -42,24 +42,36 @@ def restore_blocks(text: str, blocks: dict) -> str:
     return text
 
 def clean_output_text(text: str) -> str:
-    """จัดข้อความที่ได้จาก GPT ให้สวย อ่านง่าย ไม่ผิด markdown"""
+    """จัดข้อความจาก GPT ให้อ่านง่ายและปลอดภัยจาก markdown error"""
     text, saved_blocks = preserve_blocks(text)
 
-    # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่มากเกินไป
+    # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่เกินจำเป็น
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
 
+    # ✅ แปลง heading markdown เช่น ### หัวข้อ → **หัวข้อ**
+    text = re.sub(r'^#{2,6}\s*(.+)', r'**\1**', text, flags=re.MULTILINE)
+
+    # ✅ bullet: *, -, • → • (ถ้าขึ้นต้นบรรทัด)
+    text = re.sub(r'(?m)^[\*\-\u2022]\s+', '• ', text)
+
+    # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
+    text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
+
+    # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
+    text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1 <\2>', text)
+    text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
+
+    # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
-
-    # ✅ เชื่อมบรรทัดที่ไม่ควรตัดออกจากกัน
     text = re.sub(
         fr'(?<!{safe_ends})\n(?!{safe_starts}|\n)',
         ' ',
         text
     )
 
-    # ✅ แบ่งย่อหน้าแบบ balance: ย่อหน้าใหม่ทุก ~40 คำ
+    # ✅ แบ่งย่อหน้าให้สมดุล (~40 คำ/ย่อหน้า)
     sentences = re.split(r'(?<=[.!?])\s+', text)
     new_text, current_length = '', 0
 
@@ -72,8 +84,7 @@ def clean_output_text(text: str) -> str:
             new_text += sentence.strip() + " "
             current_length += sentence_length
 
-    text = restore_blocks(new_text, saved_blocks)
-    return text.strip()
+    return restore_blocks(new_text, saved_blocks).strip()
 
 def clean_url(url: Optional[str]) -> str:
     """ลบ \n \r ออกจาก URL"""
