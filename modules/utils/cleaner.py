@@ -64,7 +64,8 @@ def clean_output_text(text: str) -> str:
     # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
     text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1 <\2>', text)
     text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
-
+    text = re.sub(r'(?m)^(\d\.)\s*\n(\S)', r'\1 \2', text)
+    
     # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
