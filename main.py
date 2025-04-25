@@ -6,14 +6,18 @@ import random
 import re
 from datetime import datetime
 from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 # 🔹 Third-Party Packages
 import asyncpg
 import discord
 import pytz
 import openai
+import httpx
+import requests
 import redis.asyncio as redis
 from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -29,17 +33,18 @@ from modules.features.global_news import get_global_news
 from modules.features.google_search import search_google, search_image
 from modules.tarot.tarot_reading import draw_cards_and_interpret_by_topic
 from modules.nlp.message_matcher import match_topic
-from modules.memory.chat_memory import store_chat, build_chat_context
-from modules.utils.cleaner import clean_output_text, clean_url
+from modules.memory.chat_memory import store_chat, build_chat_context, get_chat_history
+from modules.utils.cleaner import clean_output_text, search_tool, format_response_markdown, clean_url
 from modules.utils.thai_to_eng_city import convert_thai_to_english_city
 from modules.utils.thai_datetime import get_thai_datetime_now, format_thai_datetime
 from modules.utils.query_utils import (
     is_greeting, is_about_bot, is_question,
     matches_important_query, remove_force_prefix,
-    needs_web_search, get_openai_response
+    needs_web_search
 )
 from modules.core.logger import logger
 from modules.core.openai_client import client as openai_client
+from modules.utils.query_utils import get_openai_response
 from modules.personality.tone_manager import detect_tone
 
 # ✅ Load environment variables
@@ -49,6 +54,11 @@ class Settings(BaseSettings):
     DISCORD_TOKEN: str = Field(..., env='DISCORD_TOKEN')
     OPENAI_API_KEY: str = Field(..., env='OPENAI_API_KEY')
     DATABASE_URL: Optional[str] = Field(None, env='DATABASE_URL')
+    PG_USER: Optional[str] = Field(None, env='PGUSER')
+    PG_PW: Optional[str] = Field(None, env='PGPASSWORD')
+    PG_HOST: Optional[str] = Field(None, env='PGHOST')
+    PG_PORT: str = Field('5432', env='PGPORT')
+    PG_DB: Optional[str] = Field(None, env='PGDATABASE')
     GOOGLE_API_KEY: Optional[str] = Field(None, env='GOOGLE_API_KEY')
     GOOGLE_CSE_ID: Optional[str] = Field(None, env='GOOGLE_CSE_ID')
     REDIS_URL: str = Field('redis://localhost', env='REDIS_URL')
@@ -61,31 +71,71 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="$", intents=intents)
 openai.api_key = settings.OPENAI_API_KEY
 redis_instance = None
-bot.pool = None 
 
 async def setup_connection():
     global redis_instance
-    redis_instance = await redis.from_url(settings.REDIS_URL, decode_responses=True)
-    await redis_instance.ping()
-    logger.info("✅ Redis connected")
+
+    # ✅ เชื่อม Redis ก่อน
+    for _ in range(3):
+        try:
+            redis_instance = await redis.from_url(settings.REDIS_URL, decode_responses=True)
+            await redis_instance.ping()
+            logger.info("✅ Redis connected")
+            break
+        except Exception as e:
+            logger.warning(f"🔁 Redis retry failed: {e}")
+            await asyncio.sleep(2)
+    else:
+        logger.error("❌ Redis connection failed")
+        redis_instance = None
+
+    # ✅ เชื่อม PostgreSQL ต่อถ้ามี credentials ครบ
+    try:
+        if settings.DATABASE_URL:
+            bot.pool = await asyncpg.create_pool(settings.DATABASE_URL)
+            logger.info("✅ PostgreSQL connected (DATABASE_URL)")
+        elif settings.PG_USER and settings.PG_PW and settings.PG_HOST and settings.PG_DB:
+            bot.pool = await asyncpg.create_pool(
+                user=settings.PG_USER,
+                password=settings.PG_PW,
+                host=settings.PG_HOST,
+                port=settings.PG_PORT,
+                database=settings.PG_DB
+            )
+            logger.info("✅ PostgreSQL connected (manual credentials)")
+        else:
+            bot.pool = None
+            logger.warning("⚠️ PostgreSQL credentials not provided. Skipping DB setup.")
+
+    except Exception as e:
+        logger.error(f"❌ PostgreSQL connection failed: {e}")
+        bot.pool = None
 
 async def create_table():
-    async with bot.pool.acquire() as con:
-        await con.execute("""
-            CREATE TABLE IF NOT EXISTS context (
-                id BIGINT PRIMARY KEY,
-                chatcontext TEXT[] DEFAULT ARRAY[]::TEXT[]
-            )
-        """)
-        logger.info("✅ context table ensured")
+    if not bot.pool:
+        logger.warning("⚠️ ไม่มี pool PostgreSQL, ข้ามการสร้างตาราง")
+        return
 
-def format_headings(text: str) -> str:
-    # แปลง # หรือ ## หรือ ### เป็น **หัวข้อ**
-    return re.sub(r"^#{2,6}\s*(.+)", r"**\1**", text, flags=re.MULTILINE)
+    try:
+        async with bot.pool.acquire() as con:
+            await con.execute("""
+                CREATE TABLE IF NOT EXISTS context (
+                    id BIGINT PRIMARY KEY,
+                    chatcontext TEXT[] DEFAULT ARRAY[]::TEXT[] 
+                )
+            """)
+            logger.info("✅ context table ensured")
+    except Exception as e:
+        logger.error(f"❌ create_table error: {e}")
 
 async def process_message(user_id: int, text: str) -> str:
-    style = await redis_instance.get(f"style:{user_id}") or detect_tone(text)
-    await redis_instance.set(f"style:{user_id}", style, ex=604800)
+    style = await redis_instance.get(f"style:{user_id}")
+
+    if not style or style in ["auto", "multi"]:
+        style = detect_tone(text)
+
+    if not await redis_instance.get(f"style:{user_id}"):
+        await redis_instance.set(f"style:{user_id}", style, ex=604800)
 
     base_prompt = (
         "คุณคือ 'พี่หลาม' หรือ 'พรี่หลาม' เป็นบอทผู้ช่วยที่พูดจาเป็นกันเองเหมือนมนุษย์ไทย "
@@ -96,9 +146,9 @@ async def process_message(user_id: int, text: str) -> str:
     )
 
     styles = {
-        "formal": "พี่หลามยังคุยแบบกันเอง แต่ใช้ภาษาสุภาพขึ้น เคารพคนฟัง",
-        "troll": "พี่หลามสายกวน มุกมาเต็ม ฮาแบบเนียน ๆ",
-        "neutral": "พี่หลามเป็นวัยรุ่นไทยคนนึง คุยง่าย สบาย ๆ มีมุกบ้าง",
+        "formal": "พี่หลามยังคุยแบบกันเอง แต่ใช้ภาษาสุภาพขึ้น เคารพคนฟัง เหมาะกับคนที่ชอบความเรียบร้อย ไม่หยาบ ไม่แซะ",
+        "troll": "พี่หลามสายกวน มุกมาเต็ม ฮาแบบเนียน ๆ เหมาะกับคนชอบคลายเครียด",
+        "neutral": "พี่หลามเป็นวัยรุ่นไทยคนนึง คุยง่าย สบาย ๆ มีมุกบ้าง เข้าใจเร็ว ตรงประเด็น",
     }
 
     return base_prompt + styles.get(style, styles["neutral"])
