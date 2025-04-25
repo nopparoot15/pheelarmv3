@@ -31,35 +31,6 @@ MUST_SEARCH_KEYWORDS = [
     "บอลวันนี้", "ผลบอล", "หวยออก", "หุ้น", "ดัชนี", "ชื่อเต็มของ", "update"
 ]
 
-def format_for_readability(text: str) -> str:
-    text = text.strip()
-
-    # ✅ แปลง markdown header (#### → **หัวข้อ**)
-    text = re.sub(r"^#{2,6}\s*(.+)", r"**\1**", text, flags=re.MULTILINE)
-
-    # ✅ bullet point: * หรือ - → •
-    text = re.sub(r"(?m)^[-*]\s+", "• ", text)
-
-    # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่
-    text = re.sub(r"(?<!\d)(\d\.)\s*(?=\S)", r"\1\n", text)
-
-    # ✅ เพิ่ม \n หลัง **หัวข้อ:** และจัดการกรณีที่มี `**:` หรือ `:**` ติดกัน
-    text = re.sub(r"(\*\*[^*]+?\*\*):", r"\1 : ", text)
-    text = re.sub(r":\s*\*\*", r":\n**", text)
-
-    # ✅ เพิ่ม \n หลัง bullet ยาว ๆ
-    text = re.sub(r"(• .+?)([^\n])", r"\1\n\2", text)
-
-    # ✅ แก้ลิงก์ให้ไม่ preview
-    text = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", text)
-    text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
-
-    # ✅ ลบ * เดี่ยวที่ไม่ใช่ ** (ระวังไม่ลบ emoji)
-    text = re.sub(r"(?<!\*)\*(?!\*)", "", text)
-
-    # ✅ เคลียร์ช่องว่างส่วนเกิน
-    lines = [line.strip() for line in text.splitlines()]
-    return "\n".join(lines).strip()
 
 def is_greeting(text: str) -> bool:
     return any(greet in text.lower() for greet in COMMON_GREETINGS)
@@ -196,7 +167,7 @@ async def get_openai_response(
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
 
-            return format_for_readability(clean_output_text(content))
+            return clean_output_text(content)
 
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
