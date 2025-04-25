@@ -31,7 +31,13 @@ MUST_SEARCH_KEYWORDS = [
     "บอลวันนี้", "ผลบอล", "หวยออก", "หุ้น", "ดัชนี", "ชื่อเต็มของ", "update"
 ]
 
-# ✅ Decision Functions
+def format_for_readability(text: str) -> str:
+    # จัดข้อความให้ดูอ่านง่ายใน Discord
+    text = re.sub(r"\n{2,}", "\n\n", text.strip())
+    text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)  # แยกหัวข้อ 1. 2. 3.
+    text = re.sub(r"(?<!\n)\* ", "\n• ", text)  # bullet
+    return text.strip()
+    
 def is_greeting(text: str) -> bool:
     return any(greet in text.lower() for greet in COMMON_GREETINGS)
 
@@ -110,7 +116,7 @@ async def get_openai_response(
             logger.info(f"🔁 Attempt {attempt + 1}: using model {model}")
             response = await openai_client.chat.completions.create(
                 model=model,
-                messages=messages[-3:],  # use last 3 messages only
+                messages=messages[-3:],
                 max_tokens=600,
                 temperature=0.6,
                 top_p=1.0,
@@ -137,11 +143,21 @@ async def get_openai_response(
                     })
 
                     logger.info(f"🔁 Fallback with model {fallback_model}")
+                    
+                    fallback_messages = messages[-5:]
+                    if fallback_model.endswith("-search-preview"):
+                        fallback_messages = [
+                            {
+                                "role": "system",
+                                "content": "ขอสรุปเนื้อหาสั้น ๆ ไม่เกิน 5 บรรทัด ตรงประเด็นหลัก หลีกเลี่ยงการอธิบายยืดยาวหรือขยายความเพิ่มเติม"
+                            }
+                        ] + fallback_messages
+
                     second_response = await openai_client.chat.completions.create(
                         model=fallback_model,
-                        messages=messages[-5:],
+                        messages=fallback_messages,
                         **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
-                        max_tokens=700
+                        max_tokens=500
                     )
 
                     content = second_response.choices[0].message.content.strip()
@@ -154,7 +170,7 @@ async def get_openai_response(
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             content = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", content)
 
-            return clean_output_text(content)
+            return format_for_readability(clean_output_text(content))
 
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
