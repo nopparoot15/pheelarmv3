@@ -121,47 +121,45 @@ async def get_openai_response(
             content = response.choices[0].message.content.strip()
             response_text = content.lower()
 
-    if use_web_fallback and any(phrase in response_text for phrase in fallback_phrases):
-        query = messages[-1]["content"]
-        
-        if any(botname in query.lower() for botname in ["พี่หลาม", "พรี่หลาม", "คุณหลาม", "gpt", "บอท"]):
-            logger.info("🧠 เป็นคำถามเกี่ยวกับบอท ไม่ fallback ไปหา Google")
-        else:
-            logger.info(f"🔍 GPT ไม่มั่นใจ, กำลังค้น Google ด้วยคำว่า: {query}")
-            raw_results = await search_google(query, settings)
-            summarized_text = summarize_google_results(raw_results)
-    
-            messages.append({
-                "role": "function",
-                "name": "search_google",
-                "content": summarized_text
-            })
-    
-            logger.info(f"🔁 Fallback with model {fallback_model}")
-            second_response = await openai_client.chat.completions.create(
-                model=fallback_model,
-                messages=messages[-5:],
-                **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
-                max_tokens=700
-            )
-    
-            content = second_response.choices[0].message.content.strip()
-            logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
+            if use_web_fallback and any(phrase in response_text for phrase in fallback_phrases):
+                query = messages[-1]["content"]
+                if any(botname in query.lower() for botname in ["พี่หลาม", "พรี่หลาม", "คุณหลาม", "gpt", "บอท"]):
+                    logger.info("🧠 เป็นคำถามเกี่ยวกับบอท ไม่ fallback ไปหา Google")
+                else:
+                    logger.info(f"🔍 GPT ไม่มั่นใจ, กำลังค้น Google ด้วยคำว่า: {query}")
+                    raw_results = await search_google(query, settings)
+                    summarized_text = summarize_google_results(raw_results)
 
+                    messages.append({
+                        "role": "function",
+                        "name": "search_google",
+                        "content": summarized_text
+                    })
+
+                    logger.info(f"🔁 Fallback with model {fallback_model}")
+                    second_response = await openai_client.chat.completions.create(
+                        model=fallback_model,
+                        messages=messages[-5:],
+                        **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
+                        max_tokens=700
+                    )
+
+                    content = second_response.choices[0].message.content.strip()
+                    logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้องใช้ Google")
 
-
+            # ✅ จัดการลิงก์: เก็บไว้แต่ไม่ให้ preview
             content = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", content)
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
-            content = re.sub(r"(https?://\S+)", r"<\1>", content)
-            
-            return clean_output_text(content)
+            content = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", content)
 
+            return clean_output_text(content)
 
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
             await asyncio.sleep(delay)
-    
+
     logger.error("⚠️ เกินจำนวน retry ที่กำหนดสำหรับ OpenAI API")
     return "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า"
+
