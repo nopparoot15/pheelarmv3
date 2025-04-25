@@ -117,30 +117,30 @@ async def get_openai_response(
                 frequency_penalty=0.3,
                 presence_penalty=0.4,
             )
-    
+
             content = response.choices[0].message.content.strip()
             response_text = content.lower()
-    
+
             if use_web_fallback and any(phrase in response_text for phrase in fallback_phrases):
                 query = messages[-1]["content"]
                 logger.info(f"🔍 GPT ไม่มั่นใจ, กำลังค้น Google ด้วยคำว่า: {query}")
-            
+
                 raw_results = await search_google(query, settings)
-            
+
                 # ส่งเข้า GPT เพื่อสรุปให้อ่านง่าย
                 summarized_text = summarize_google_results(raw_results)
                 reference_links = format_google_results(raw_results)
-            
+
                 combined_info = f"{summarized_text}\n\n📚 แหล่งอ้างอิง:\n{reference_links}"
-            
+
                 messages.append({
                     "role": "function",
                     "name": "search_google",
                     "content": combined_info
                 })
-            
+
                 logger.info(f"🔁 Fallback with model {fallback_model}")
-    
+
                 if fallback_model == "gpt-4o-mini-search-preview":
                     second_response = await openai_client.chat.completions.create(
                         model=fallback_model,
@@ -154,18 +154,18 @@ async def get_openai_response(
                         messages=messages,
                         max_tokens=1000
                     )
-    
+
                 content = second_response.choices[0].message.content.strip()
                 logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
-    
+
                 # ✅ รวมคำตอบกับลิงก์แหล่งที่มา
-                content += f"\n\n{references}"
-    
+                content += f"\n\n📚 แหล่งอ้างอิง:\n{reference_links}"
+
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้องใช้ Google")
-    
-            return re.sub(r'(https?://\S+)', r'<\1>', clean_output_text(content))
-    
+
+            return re.sub(r'(https?://\\S+)', r'<\\1>', clean_output_text(content))
+
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
             await asyncio.sleep(delay)
