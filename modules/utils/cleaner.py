@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 
-# ✅ ฟังก์ชัน search ที่ใช้ใน GPT tools (ใช้ร่วมกับ OpenAI function calling)
+# ✅ ฟังก์ชัน search ที่ใช้ใน GPT tools (สำหรับ function calling)
 search_tool = {
     "type": "function",
     "function": {
@@ -21,6 +21,7 @@ search_tool = {
 }
 
 def preserve_blocks(raw: str) -> tuple[str, dict]:
+    """เก็บโค้ดบล็อค, ตาราง, หรือ inline code ไว้ก่อน เพื่อไม่ให้โดนแก้ตอน clean"""
     code_blocks = {}
 
     def replacer(match):
@@ -35,33 +36,36 @@ def preserve_blocks(raw: str) -> tuple[str, dict]:
     return raw, code_blocks
 
 def restore_blocks(text: str, blocks: dict) -> str:
+    """ใส่โค้ดบล็อคและตารางที่เก็บไว้กลับเข้าที่เดิม"""
     for key, value in blocks.items():
         text = text.replace(key, value)
     return text
 
 def clean_output_text(text: str) -> str:
+    """จัดข้อความที่ได้จาก GPT ให้สวย อ่านง่าย ไม่ผิด markdown"""
     text, saved_blocks = preserve_blocks(text)
 
-    # ลบช่องว่างท้ายบรรทัดและลดการขึ้นบรรทัดใหม่มากเกินไป
+    # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่มากเกินไป
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
 
+    # ✅ เชื่อมบรรทัดที่ไม่ควรตัดออกจากกัน
     text = re.sub(
         fr'(?<!{safe_ends})\n(?!{safe_starts}|\n)',
         ' ',
         text
     )
 
-    # เพิ่มการเว้นวรรคย่อหน้าให้ดูอ่านง่ายขึ้น
+    # ✅ แบ่งย่อหน้าแบบ balance: ย่อหน้าใหม่ทุก ~40 คำ
     sentences = re.split(r'(?<=[.!?])\s+', text)
     new_text, current_length = '', 0
 
     for sentence in sentences:
         sentence_length = len(sentence.split())
-        if current_length + sentence_length > 40:  # ประมาณ 40 คำต่อย่อหน้า
+        if current_length + sentence_length > 40:
             new_text = new_text.strip() + "\n\n" + sentence.strip() + " "
             current_length = sentence_length
         else:
@@ -72,11 +76,13 @@ def clean_output_text(text: str) -> str:
     return text.strip()
 
 def clean_url(url: Optional[str]) -> str:
+    """ลบ \n \r ออกจาก URL"""
     if not isinstance(url, str):
         return ""
     return re.sub(r'[\n\r]', '', url)
-    
+
 def format_response_markdown(text: str) -> str:
+    """จัด markdown เช่น bullet point และลิงก์ ให้ถูกต้อง"""
     lines = text.split("\n")
     formatted_lines = []
 
@@ -90,6 +96,8 @@ def format_response_markdown(text: str) -> str:
             formatted_lines.append(line)
 
     formatted_text = "\n".join(formatted_lines)
+
+    # ✅ แก้ลิงก์
     formatted_text = re.sub(r'<\((https?://[^\s]+)\)>', r'<\1>', formatted_text)
     formatted_text = re.sub(r'\*\*(.+?)\*\*', r'**\1**', formatted_text)
 
