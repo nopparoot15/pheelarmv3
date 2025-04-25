@@ -276,7 +276,7 @@ async def on_message(message: discord.Message):
         if notify:
             await notify.delete()
 
-        reply_content = format_response_markdown(reply)
+        reply_content = clean_output_text(reply)
         await smart_reply(message, reply_content)
         await store_chat(redis_instance, message.author.id, {
             "question": text,
