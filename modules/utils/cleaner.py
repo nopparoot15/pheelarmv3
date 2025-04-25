@@ -55,6 +55,9 @@ def clean_output_text(text: str) -> str:
     # ✅ bullet: *, -, • → • (ถ้าขึ้นต้นบรรทัด)
     text = re.sub(r'(?m)^[\*\-\u2022]\s+', '• ', text)
 
+    # ✅ เชื่อมเลขลำดับกับเนื้อหา เช่น "1.\nข้อความ" → "1. ข้อความ"
+    text = re.sub(r'(?<=^\d\.)\n(?=\S)', ' ', text, flags=re.MULTILINE)
+
     # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
@@ -85,6 +88,7 @@ def clean_output_text(text: str) -> str:
             current_length += sentence_length
 
     return restore_blocks(new_text, saved_blocks).strip()
+
 
 def clean_url(url: Optional[str]) -> str:
     """ลบ \n \r ออกจาก URL"""
