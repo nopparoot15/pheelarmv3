@@ -41,25 +41,25 @@ def format_for_readability(text: str) -> str:
     text = re.sub(r"(?m)^[-*]\s+", "• ", text)
 
     # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่
-    text = re.sub(r"(\d\.)\s*(?=\S)", r"\1\n", text)
+    text = re.sub(r"(?<!\d)(\d\.)\s*(?=\S)", r"\1\n", text)
 
-    # ✅ เพิ่ม \n หลัง **หัวข้อ** โดยไม่ใช้ lookbehind
-    text = re.sub(r"(\*\*.+?\*\*)([^\n])", r"\1\n\2", text)
+    # ✅ เพิ่ม \n หลัง **หัวข้อ:** หรือ **...** ที่ติดกับข้อความ
+    text = re.sub(r"(\*\*[^*]+?\*\*):?([^\s\n])", r"\1\n\2", text)
 
-    # ✅ เพิ่ม \n หลัง bullet point ยาว ๆ โดยไม่ใช้ lookbehind
+    # ✅ เพิ่ม \n หลัง bullet ยาว ๆ แบบไม่ใช้ lookbehind
     text = re.sub(r"(• .+?)([^\n])", r"\1\n\2", text)
 
     # ✅ แก้ลิงก์ให้ไม่ preview
     text = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", text)
     text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
 
-    # ✅ ตัด * เดี่ยวที่อาจเกิด markdown error (ไม่ใช้ lookbehind)
+    # ✅ ลบ * เดี่ยวที่ไม่ใช่ ** เพื่อป้องกัน markdown พัง
     text = re.sub(r"(?<!\*)\*(?!\*)", "", text)
 
-    # ✅ ตัดช่องว่างซ้ำหน้า/หลังแต่ละบรรทัด
+    # ✅ ล้างช่องว่างส่วนเกินแต่ละบรรทัด
     lines = [line.strip() for line in text.splitlines()]
     return "\n".join(lines).strip()
-    
+
 def is_greeting(text: str) -> bool:
     return any(greet in text.lower() for greet in COMMON_GREETINGS)
 
