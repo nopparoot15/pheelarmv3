@@ -252,7 +252,6 @@ async def on_message(message: discord.Message):
             return await smart_reply(message, "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า")
 
         cleaned = clean_output_text(reply)
-        formatted = format_headings(cleaned)
         await smart_reply(message, formatted)
 
         await store_chat(redis_instance, message.author.id, {
