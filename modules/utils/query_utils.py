@@ -127,7 +127,6 @@ async def get_openai_response(
 
                 raw_results = await search_google(query, settings)
 
-                # ส่งเข้า GPT เพื่อสรุปให้อ่านง่าย
                 summarized_text = summarize_google_results(raw_results)
                 reference_links = format_google_results(raw_results)
 
@@ -158,13 +157,16 @@ async def get_openai_response(
                 content = second_response.choices[0].message.content.strip()
                 logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
 
-                # ✅ รวมคำตอบกับลิงก์แหล่งที่มา
-                content += f"\n\n📚 แหล่งอ้างอิง:\n{reference_links}"
-
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้องใช้ Google")
 
-            return re.sub(r'(https?://\\S+)', r'<\\1>', clean_output_text(content))
+            # ✅ ล้างลิงก์ออกก่อนส่ง
+            content = re.sub(r"https?://\S+", "", content)  # ลบลิงก์ http
+            content = re.sub(r"www\.\S+", "", content)       # ลบลิงก์ www
+            content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)  # ลบ markdown link
+            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)     # ลบหัวข้อแหล่งอ้างอิง
+
+            return re.sub(r'(https?://\S+)', r'<\1>', clean_output_text(content))
 
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
