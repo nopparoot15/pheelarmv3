@@ -224,31 +224,29 @@ async def on_message(message: discord.Message):
     elif any(kw in lowered for kw in ["กี่โมง", "เวลากี่โมง"]):
         return await smart_reply(message, f"🕒 ขณะนี้คือ {get_thai_datetime_now()}")
 
-    # ✅ ใช้ GPT ตอบก่อน → ถ้าตอบไม่ได้ค่อย fallback หาเว็บ
     model = "gpt-4o-mini"
-    style_prompt = await process_message(message.author.id, cleaned_text)
+    
+    # 👤 สร้าง system prompt พร้อม personality และ tone จากผู้ใช้
+    system_prompt = await process_message(message.author.id, cleaned_text)
+    
+    # 🕒 เพิ่มข้อมูล timezone / เวลาให้พี่หลามรู้ว่าตอบอยู่โซนไหน
     timezone = await redis_instance.get(f"timezone:{message.author.id}") or "Asia/Bangkok"
     now = datetime.now(pytz.timezone(timezone))
     
-    # ✅ ปรับ system prompt เพื่อให้รู้ว่าค้นเว็บได้ และไม่จำกัดแค่ข้อมูลเก่า
-    system_prompt = f"""{DEFAULT_SYSTEM_PROMPT}
-    
-    พี่หลามสามารถค้นหาเว็บแบบ real-time ได้แล้ว และมีข้อมูลอัปเดตถึงปัจจุบัน ไม่จำกัดแค่ข้อมูลเก่า
-    ถ้าไม่มั่นใจ หรือยังไม่มีข้อมูล พี่หลามสามารถใช้ Google ช่วยหาคำตอบให้ได้นะครับ
-    
-    {style_prompt}
+    system_prompt += f"""
     
     ⏰ timezone: {timezone}
     🕒 {format_thai_datetime(now)}
     """
     
+    # 💬 สร้าง context ที่มี system prompt + แชทย้อนหลัง
     messages = await build_chat_context(
-    redis_instance,
-    message.author.id,
-    cleaned_text,
-    system_prompt=system_prompt,
-    limit=3
-)
+        redis_instance,
+        message.author.id,
+        cleaned_text,
+        system_prompt=system_prompt,
+        limit=3  # จะเก็บแค่ 3 ข้อความล่าสุด
+    )
 
     async with message.channel.typing():
         notify = None
