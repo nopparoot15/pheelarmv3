@@ -26,7 +26,7 @@ async def build_chat_context(
     user_id: int,
     new_input: str,
     *,
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    system_prompt: str,
     limit: int = 3
 ) -> List[dict]:
     messages = [{"role": "system", "content": system_prompt}]
