@@ -173,11 +173,15 @@ async def smart_reply(message: discord.Message, content: str):
 
 @bot.event
 async def on_message(message: discord.Message):
+    # ✅ ข้ามข้อความจากบอท และข้ามข้อความที่ไม่อยู่ใน CHANNEL_ID
     if message.author.bot or message.channel.id != CHANNEL_ID:
         return
-
+        
     text = message.content.strip()
     lowered = text.lower()
+
+    if lowered.startswith("!"):
+        return
 
     topic = match_topic(lowered)
     if topic == "image":
