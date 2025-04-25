@@ -110,12 +110,12 @@ async def get_openai_response(
             logger.info(f"🔁 Attempt {attempt + 1}: using model {model}")
             response = await openai_client.chat.completions.create(
                 model=model,
-                messages=messages,
-                max_tokens=1000,
-                temperature=0.7,
+                messages=messages[-3:],  # use last 3 messages only
+                max_tokens=600,
+                temperature=0.6,
                 top_p=1.0,
-                frequency_penalty=0.3,
-                presence_penalty=0.4,
+                frequency_penalty=0.2,
+                presence_penalty=0.3,
             )
 
             content = response.choices[0].message.content.strip()
@@ -126,33 +126,21 @@ async def get_openai_response(
                 logger.info(f"🔍 GPT ไม่มั่นใจ, กำลังค้น Google ด้วยคำว่า: {query}")
 
                 raw_results = await search_google(query, settings)
-
                 summarized_text = summarize_google_results(raw_results)
-                reference_links = format_google_results(raw_results)
-
-                combined_info = f"{summarized_text}\n\n📚 แหล่งอ้างอิง:\n{reference_links}"
 
                 messages.append({
                     "role": "function",
                     "name": "search_google",
-                    "content": combined_info
+                    "content": summarized_text
                 })
 
                 logger.info(f"🔁 Fallback with model {fallback_model}")
-
-                if fallback_model == "gpt-4o-mini-search-preview":
-                    second_response = await openai_client.chat.completions.create(
-                        model=fallback_model,
-                        messages=messages,
-                        web_search_options={},
-                        max_tokens=1000
-                    )
-                else:
-                    second_response = await openai_client.chat.completions.create(
-                        model=fallback_model,
-                        messages=messages,
-                        max_tokens=1000
-                    )
+                second_response = await openai_client.chat.completions.create(
+                    model=fallback_model,
+                    messages=messages[-5:],
+                    **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
+                    max_tokens=700
+                )
 
                 content = second_response.choices[0].message.content.strip()
                 logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
@@ -160,14 +148,14 @@ async def get_openai_response(
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้องใช้ Google")
 
-            # ✅ ล้างลิงก์ออกก่อนส่ง
-            content = re.sub(r"https?://\S+", "", content)  # ลบลิงก์ http
-            content = re.sub(r"www\.\S+", "", content)       # ลบลิงก์ www
-            content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)  # ลบ markdown link
-            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)     # ลบหัวข้อแหล่งอ้างอิง
+            # Remove links and markdown formatting
+            content = re.sub(r"https?://\S+", "", content)
+            content = re.sub(r"www\.\S+", "", content)
+            content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)
+            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
 
             return re.sub(r'(https?://\S+)', r'<\1>', clean_output_text(content))
-
+ไ
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
             await asyncio.sleep(delay)
