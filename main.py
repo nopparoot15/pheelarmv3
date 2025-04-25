@@ -170,7 +170,6 @@ async def smart_reply(message: discord.Message, content: str):
 @bot.event
 async def on_ready():
     await setup_connection()
-    bot.pool = await asyncpg.create_pool(dsn=settings.DATABASE_URL)
     await create_table()
     await bot.tree.sync()
     logger.info(f"🚀 {bot.user} is ready!")
