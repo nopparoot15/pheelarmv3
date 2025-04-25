@@ -39,6 +39,7 @@ def format_for_readability(text: str) -> str:
     text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)
     text = re.sub(r"\n{2,}", "\n\n", text)
     text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
+    text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
     return text.strip()
     
