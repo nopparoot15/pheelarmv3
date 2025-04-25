@@ -41,7 +41,7 @@ def format_for_readability(text: str) -> str:
     text = re.sub(r"(?m)^[-*]\s+", "• ", text)
 
     # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่ แต่ไม่เพิ่มเว้นว่าง
-    text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)
+    text = re.sub(r"(\d\.)\s*(?=\S)", r"\1\n", text)
 
     # ✅ เพิ่ม \n\n แค่หลัง **หัวข้อ** หรือ bullet ยาว ๆ เท่านั้น
     text = re.sub(r"(?<=\*\*.+?\*\*)(?!\n)", "\n", text)
