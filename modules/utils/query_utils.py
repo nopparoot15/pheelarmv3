@@ -32,10 +32,14 @@ MUST_SEARCH_KEYWORDS = [
 ]
 
 def format_for_readability(text: str) -> str:
-    # จัดข้อความให้ดูอ่านง่ายใน Discord
-    text = re.sub(r"\n{2,}", "\n\n", text.strip())
-    text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)  # แยกหัวข้อ 1. 2. 3.
-    text = re.sub(r"(?<!\n)\* ", "\n• ", text)  # bullet
+    text = text.strip()
+
+    text = re.sub(r"^#{2,6}\s*(.+)", r"**\1**", text, flags=re.MULTILINE)
+    text = re.sub(r"(?m)^[-*]\s+", "• ", text)
+    text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)
+    text = re.sub(r"\n{2,}", "\n\n", text)
+    text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
+
     return text.strip()
     
 def is_greeting(text: str) -> bool:
