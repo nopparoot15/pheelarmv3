@@ -40,19 +40,21 @@ def format_for_readability(text: str) -> str:
     # ✅ bullet point: * หรือ - → •
     text = re.sub(r"(?m)^[-*]\s+", "• ", text)
 
-    # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่ แต่ไม่เพิ่มเว้นว่าง
+    # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่
     text = re.sub(r"(\d\.)\s*(?=\S)", r"\1\n", text)
 
-    # ✅ เพิ่ม \n\n แค่หลัง **หัวข้อ** หรือ bullet ยาว ๆ เท่านั้น
-    text = re.sub(r"(?<=\*\*.+?\*\*)(?!\n)", "\n", text)
-    text = re.sub(r"(?<=• .+)(?!\n)", "\n", text)
+    # ✅ เพิ่ม \n หลัง **หัวข้อ** โดยไม่ใช้ lookbehind
+    text = re.sub(r"(\*\*.+?\*\*)([^\n])", r"\1\n\2", text)
+
+    # ✅ เพิ่ม \n หลัง bullet point ยาว ๆ โดยไม่ใช้ lookbehind
+    text = re.sub(r"(• .+?)([^\n])", r"\1\n\2", text)
 
     # ✅ แก้ลิงก์ให้ไม่ preview
     text = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", text)
     text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
 
-    # ✅ ตัด * เดี่ยวที่อาจเกิด markdown error
-    text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
+    # ✅ ตัด * เดี่ยวที่อาจเกิด markdown error (ไม่ใช้ lookbehind)
+    text = re.sub(r"(?<!\*)\*(?!\*)", "", text)
 
     # ✅ ตัดช่องว่างซ้ำหน้า/หลังแต่ละบรรทัด
     lines = [line.strip() for line in text.splitlines()]
