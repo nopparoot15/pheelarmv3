@@ -70,8 +70,9 @@ def clean_output_text(text: str) -> str:
     text = restore_blocks(new_text, saved_blocks)
     return text.strip()
 
-def clean_url(url: str) -> str:
-    """ ลบการขึ้นบรรทัดใหม่หรืออักขระพิเศษใน URL """
+def clean_url(url: Optional[str]) -> str:
+    if not isinstance(url, str):
+        return ""
     return re.sub(r'[\n\r]', '', url)
     
 def format_response_markdown(text: str) -> str:
