@@ -186,9 +186,7 @@ async def on_message(message: discord.Message):
     topic = match_topic(lowered)
     if topic == "image":
         query = re.sub(r"^(ดูรูป|ค้นรูป|หารูป|ขอรูป)[:,\s]*", "", lowered)
-        if not query:
-            prev_query = await redis_instance.get(f"last_image_query:{message.author.id}")
-            query = prev_query
+        query = query or await redis_instance.get(f"last_image_query:{message.author.id}")
         if query:
             await redis_instance.set(f"last_image_query:{message.author.id}", query, ex=300)
             image_url = await search_image(query, settings)
@@ -233,7 +231,7 @@ async def on_message(message: discord.Message):
     elif any(kw in lowered for kw in ["กี่โมง", "เวลากี่โมง"]):
         return await smart_reply(message, f"🕒 ขณะนี้คือ {get_thai_datetime_now()}")
 
-    # 🧠 โหมดปกติ
+    # 🧠 ตอบด้วย GPT ตามระบบหลัก
     model = "gpt-4o-mini"
     system_prompt = await process_message(message.author.id, text)
     timezone = await redis_instance.get(f"timezone:{message.author.id}") or "Asia/Bangkok"
@@ -246,20 +244,20 @@ async def on_message(message: discord.Message):
 
     async with message.channel.typing():
         reply = await get_openai_response(
-            messages, settings=settings, model=model, use_web_fallback=True,
-            fallback_model="gpt-4o-mini-search-preview"
+            messages, settings=settings, model=model,
+            use_web_fallback=True, fallback_model="gpt-4o-mini-search-preview"
         )
 
         if not reply:
             return await smart_reply(message, "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า")
 
-        formatted = format_headings(reply)
-        cleaned = clean_output_text(formatted)
-        await smart_reply(message, cleaned)
+        cleaned = clean_output_text(reply)
+        formatted = format_headings(cleaned)
+        await smart_reply(message, formatted)
 
         await store_chat(redis_instance, message.author.id, {
             "question": text,
-            "response": cleaned
+            "response": formatted
         })
 
 # ✅ Entry point
