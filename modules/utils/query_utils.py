@@ -155,7 +155,7 @@ async def get_openai_response(
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
 
             return re.sub(r'(https?://\S+)', r'<\1>', clean_output_text(content))
-ไ
+
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
             await asyncio.sleep(delay)
