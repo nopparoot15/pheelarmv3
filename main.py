@@ -170,7 +170,6 @@ async def on_message(message: discord.Message):
 
     text = message.content.strip()
     lowered = text.lower()
-    cleaned_text = re.sub(r"[^\w\sก-๙]", "", lowered)
 
     topic = match_topic(lowered)
     if topic == "image":
@@ -224,34 +223,29 @@ async def on_message(message: discord.Message):
     elif any(kw in lowered for kw in ["กี่โมง", "เวลากี่โมง"]):
         return await smart_reply(message, f"🕒 ขณะนี้คือ {get_thai_datetime_now()}")
 
+    # 👤 Personality
     model = "gpt-4o-mini"
-    
-    # 👤 สร้าง system prompt พร้อม personality และ tone จากผู้ใช้
-    system_prompt = await process_message(message.author.id, cleaned_text)
-    
-    # 🕒 เพิ่มข้อมูล timezone / เวลาให้พี่หลามรู้ว่าตอบอยู่โซนไหน
+    system_prompt = await process_message(message.author.id, text)
+
     timezone = await redis_instance.get(f"timezone:{message.author.id}") or "Asia/Bangkok"
     now = datetime.now(pytz.timezone(timezone))
-    
     system_prompt += f"""
-    
-    ⏰ timezone: {timezone}
-    🕒 {format_thai_datetime(now)}
-    """
-    
-    # 💬 สร้าง context ที่มี system prompt + แชทย้อนหลัง
+
+⏰ timezone: {timezone}
+🕒 {format_thai_datetime(now)}
+"""
+
     messages = await build_chat_context(
         redis_instance,
         message.author.id,
-        cleaned_text,
+        text,
         system_prompt=system_prompt,
-        limit=3  # จะเก็บแค่ 3 ข้อความล่าสุด
+        limit=3
     )
 
     async with message.channel.typing():
         notify = None
 
-        # ลองให้ GPT ตอบก่อน
         reply = await get_openai_response(
             messages,
             settings=settings,
@@ -264,30 +258,18 @@ async def on_message(message: discord.Message):
             logger.warning("❌ GPT ไม่ตอบอะไรเลย")
             return await smart_reply(message, "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า")
 
-        # ถ้า GPT ใช้ fallback → ลบข้อความแจ้ง
         if "🔍 กำลังค้นหาข้อมูลจาก Google..." in reply:
             notify = await message.channel.send("🔍 กำลังค้นหาข้อมูลจาก Google...")
 
-        # ส่งผลลัพธ์กลับ
+        if notify:
+            await notify.delete()
+
         reply_content = clean_url(clean_output_text(format_response_markdown(reply)))
         await smart_reply(message, reply_content)
         await store_chat(redis_instance, message.author.id, {
-            "question": cleaned_text,
+            "question": text,
             "response": reply_content
         })
-
-        if notify:
-            await notify.delete()
-    
-            if reply:
-                reply_content = format_response_markdown(reply)
-                reply_content = clean_output_text(reply_content)
-                reply_content = clean_url(reply_content)
-                await smart_reply(message, reply_content)
-                await store_chat(redis_instance, message.author.id, {
-                    "question": cleaned_text,
-                    "response": reply_content
-                })
 
 # ✅ Entry point
 async def main():
