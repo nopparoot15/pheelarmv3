@@ -34,29 +34,27 @@ MUST_SEARCH_KEYWORDS = [
 def format_for_readability(text: str) -> str:
     text = text.strip()
 
-    # 🔹 แปลง markdown header #### → Discord bold
+    # ✅ แปลง markdown header (#### → **หัวข้อ**)
     text = re.sub(r"^#{2,6}\s*(.+)", r"**\1**", text, flags=re.MULTILINE)
 
-    # 🔹 bullet point: * หรือ - → •
+    # ✅ bullet point: * หรือ - → •
     text = re.sub(r"(?m)^[-*]\s+", "• ", text)
 
-    # 🔹 แยกหัวข้อ 1. 2. ให้ขึ้นบรรทัดใหม่
+    # ✅ แยก 1. 2. 3. ขึ้นบรรทัดใหม่ แต่ไม่เพิ่มเว้นว่าง
     text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)
 
-    # 🔹 เว้นวรรคย่อหน้าให้พอดี (ลดหลายบรรทัดติดกัน)
-    text = re.sub(r"\n{2,}", "\n\n", text)
+    # ✅ เพิ่ม \n\n แค่หลัง **หัวข้อ** หรือ bullet ยาว ๆ เท่านั้น
+    text = re.sub(r"(?<=\*\*.+?\*\*)(?!\n)", "\n", text)
+    text = re.sub(r"(?<=• .+)(?!\n)", "\n", text)
 
-    # 🔹 ใส่วงเล็บลิงก์ให้ Discord ไม่ embed preview
+    # ✅ แก้ลิงก์ให้ไม่ preview
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", text)
     text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
 
-    # 🔹 ล้าง * เดี่ยวที่ไม่ใช่ bold/italic → ป้องกัน markdown error
+    # ✅ ตัด * เดี่ยวที่อาจเกิด markdown error
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
-    # 🔹 ปิด ** ให้ครบคู่ ถ้ามีเปิดแต่ไม่มีปิด
-    if text.count("**") % 2 != 0:
-        text += "**"
-
-    # 🔹 ลบช่องว่างหน้า/หลังแต่ละบรรทัด
+    # ✅ ตัดช่องว่างซ้ำหน้า/หลังแต่ละบรรทัด
     lines = [line.strip() for line in text.splitlines()]
     return "\n".join(lines).strip()
     
