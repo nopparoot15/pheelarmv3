@@ -61,6 +61,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="$", intents=intents)
 openai.api_key = settings.OPENAI_API_KEY
 redis_instance = None
+bot.pool = None 
 
 async def setup_connection():
     global redis_instance
@@ -215,10 +216,12 @@ async def on_message(message: discord.Message):
 # ✅ Entry point
 async def main():
     await setup_connection()
-    if bot.pool and redis_instance:
+    if redis_instance:
+        if bot.pool is None:
+            logger.warning("⚠️ PostgreSQL ไม่เชื่อมต่อ แต่ Redis ติดตั้งแล้ว จะเริ่มบอทแบบใช้เฉพาะ Redis")
         await bot.start(settings.DISCORD_TOKEN)
     else:
-        logger.error("❌ ไม่สามารถเริ่มบอทได้ เพราะเชื่อมต่อ Redis หรือ DB ไม่สำเร็จ")
+        logger.error("❌ ไม่สามารถเริ่มบอทได้ เพราะเชื่อมต่อ Redis ไม่สำเร็จ")
 
 if __name__ == "__main__":
     asyncio.run(main())
