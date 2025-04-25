@@ -34,14 +34,31 @@ MUST_SEARCH_KEYWORDS = [
 def format_for_readability(text: str) -> str:
     text = text.strip()
 
+    # 🔹 แปลง markdown header #### → Discord bold
     text = re.sub(r"^#{2,6}\s*(.+)", r"**\1**", text, flags=re.MULTILINE)
+
+    # 🔹 bullet point: * หรือ - → •
     text = re.sub(r"(?m)^[-*]\s+", "• ", text)
+
+    # 🔹 แยกหัวข้อ 1. 2. ให้ขึ้นบรรทัดใหม่
     text = re.sub(r"(?<=\d)\.\s*(?=\S)", lambda m: f"{m.group()}\n", text)
+
+    # 🔹 เว้นวรรคย่อหน้าให้พอดี (ลดหลายบรรทัดติดกัน)
     text = re.sub(r"\n{2,}", "\n\n", text)
+
+    # 🔹 ใส่วงเล็บลิงก์ให้ Discord ไม่ embed preview
     text = re.sub(r"(?<!<)(https?://\S+)(?!>)", r"<\1>", text)
+
+    # 🔹 ล้าง * เดี่ยวที่ไม่ใช่ bold/italic → ป้องกัน markdown error
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
-    return text.strip()
+    # 🔹 ปิด ** ให้ครบคู่ ถ้ามีเปิดแต่ไม่มีปิด
+    if text.count("**") % 2 != 0:
+        text += "**"
+
+    # 🔹 ลบช่องว่างหน้า/หลังแต่ละบรรทัด
+    lines = [line.strip() for line in text.splitlines()]
+    return "\n".join(lines).strip()
     
 def is_greeting(text: str) -> bool:
     return any(greet in text.lower() for greet in COMMON_GREETINGS)
