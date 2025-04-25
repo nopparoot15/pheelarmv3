@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 # ✅ ฟังก์ชัน search ที่ใช้ใน GPT tools (ใช้ร่วมกับ OpenAI function calling)
 search_tool = {
