@@ -90,7 +90,13 @@ def clean_output_text(text: str) -> str:
 
     # ✅ เชื่อมเลขลำดับ เช่น "6.\nเนื้อหา" → "6. เนื้อหา"
     text = re.sub(r'(?m)^(\d\.)\s*\n+(\S)', r'\1 \2', text)
-
+    
+    # ✅ ตัด label หน้า URL ถ้าเหมือนโดเมนของลิงก์นั้น เช่น tnnthailand.com <https://tnnthailand.com/...> → <...>
+    text = re.sub(
+        r'(?m)^(\s*)([^\s<>]+\.(?:com|net|org|go\.th))\s+<((https?://\2[^\s<>]*))>',
+        r'\1<\3>',
+        text
+    )
     return text.strip()
 
 def clean_url(url: Optional[str]) -> str:
