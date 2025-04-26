@@ -58,8 +58,12 @@ def clean_output_text(text: str) -> str:
     # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
+    # ✅ ลบ ** ที่ไม่จับคู่ (เปิดแต่ไม่มีปิด / ปิดแต่ไม่มีเปิด)
+    text = re.sub(r'\*\*(?=\s|$)', '', text)
+    text = re.sub(r'(?<=^|\s)\*\*(?!\S)', '', text)
+
     # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
-    text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1 <\2>', text)
+    text = re.sub(r'$begin:math:display$([^$end:math:display$]+)\]$begin:math:text$(https?://[^$end:math:text$]+)\)', r'\1 <\2>', text)
     text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
 
     # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
@@ -81,7 +85,7 @@ def clean_output_text(text: str) -> str:
 
     text = restore_blocks(new_text, saved_blocks)
 
-    # ✅ เชื่อมเลขลำดับที่แยกบรรทัด เช่น "6.\nเนื้อหา" → "6. เนื้อหา"
+    # ✅ เชื่อมเลขลำดับ เช่น "6.\nเนื้อหา" → "6. เนื้อหา"
     text = re.sub(r'(?m)^(\d\.)\s*\n+(\S)', r'\1 \2', text)
 
     return text.strip()
@@ -107,9 +111,7 @@ def format_response_markdown(text: str) -> str:
             formatted_lines.append(line)
 
     formatted_text = "\n".join(formatted_lines)
-
-    # ✅ แก้ลิงก์
-    formatted_text = re.sub(r'<\((https?://[^\s]+)\)>', r'<\1>', formatted_text)
+    formatted_text = re.sub(r'<$begin:math:text$(https?://[^\\s]+)$end:math:text$>', r'<\1>', formatted_text)
     formatted_text = re.sub(r'\*\*(.+?)\*\*', r'**\1**', formatted_text)
 
     return formatted_text.strip()
