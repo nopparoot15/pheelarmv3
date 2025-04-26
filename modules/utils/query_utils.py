@@ -101,17 +101,19 @@ async def get_openai_response(
         "ยังไม่มีเหตุการณ์เกิดขึ้นจริง ๆ", "ยังไม่สามารถคาดเดาเหตุการณ์ในอนาคตได้",
         "แนะนำให้ติดตามข่าวสาร", "แนะนำให้ติดตามข่าว", "แนะนำให้ติดตามสื่อมวลชน",
         "ควรติดตามจากหน่วยงานที่เกี่ยวข้อง", "ลองตรวจสอบกับกรมอุตุนิยมวิทยา",
-        "ตรวจสอบเว็บไซต์ข่าว", "ยังไม่สามารถยืนยันได้แน่ชัด",
+        "ตรวจสอบเว็บไซต์ข่าว", "ยังไม่สามารถยืนยันได้แน่ชัด", 
         "ถ้ามีอะไรเพิ่มเติมที่อยากรู้ บอกได้เลย",
     ]
+
+    did_fallback = False
 
     for attempt in range(max_retries):
         try:
             logger.info(f"🔁 Attempt {attempt + 1}: using model {model}")
             response = await openai_client.chat.completions.create(
                 model=model,
-                messages=messages[-3:],
-                max_tokens=1500,
+                messages=messages,
+                max_tokens=1800,
                 temperature=0.6,
                 top_p=1.0,
                 frequency_penalty=0.2,
@@ -119,56 +121,47 @@ async def get_openai_response(
             )
 
             content = response.choices[0].message.content.strip()
-            lowered = content.lower()
+            response_text = content.lower()
 
-            if use_web_fallback and any(p in lowered for p in fallback_phrases):
+            if use_web_fallback and not did_fallback and any(phrase in response_text for phrase in fallback_phrases):
                 query = messages[-1]["content"]
                 if any(botname in query.lower() for botname in ["พี่หลาม", "พรี่หลาม", "คุณหลาม", "gpt", "บอท"]):
                     logger.info("🧠 เป็นคำถามเกี่ยวกับบอท ไม่ fallback ไปหา Google")
                 else:
-                    logger.info(f"🔍 GPT ไม่มั่นใจ → fallback ไปหา Google: {query}")
-                    search_results = await search_google(query, settings)
-                    summary = summarize_google_results(search_results)
+                    logger.info(f"🔍 GPT ไม่มั่นใจ, ค้น Google ด้วย: {query}")
+                    raw_results = await search_google(query, settings)
+                    summarized_text = summarize_google_results(raw_results)
 
                     messages.append({
                         "role": "function",
                         "name": "search_google",
-                        "content": summary
+                        "content": summarized_text
                     })
 
-                    fallback_messages = [
-                        {
-                            "role": "system",
-                            "content": (
-                                "เรียบเรียงข้อมูลจากเว็บให้เป็นข้อ ๆ หรือหัวข้อย่อย ๆ อย่างเป็นระเบียบ "
-                                "หลีกเลี่ยงการพูดวกวนหรือสรุปคลุมเครือ ถ้าเป็นรายการควรใช้ bullet หรือเลขลำดับ"
-                            )
-                        }
-                    ] + messages[-5:]
+                    logger.info(f"🔁 Fallback with model {fallback_model}")
+                    did_fallback = True
 
-                    response = await openai_client.chat.completions.create(
+                    # ❌ ไม่ต้องยัด system prompt บังคับย่ออีก
+                    fallback_messages = messages[-5:]
+
+                    second_response = await openai_client.chat.completions.create(
                         model=fallback_model,
                         messages=fallback_messages,
-                        **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
-                        max_tokens=1500,
+                        max_tokens=1500
                     )
 
-                    content = response.choices[0].message.content.strip()
+                    content = second_response.choices[0].message.content.strip()
                     logger.info("🧠 Fallback ตอบจาก Google แล้ว")
+            else:
+                logger.info("🧠 GPT ตอบเองได้ ไม่ต้อง fallback")
 
-            # ✅ แก้ markdown/lint ก่อน return
+            # ✅ ล้างลิงก์ markdown
             content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1 <\2>", content)
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
-            
-            # ✅ ลบลิงก์ซ้อน เช่น "ngthai.com <https://ngthai.com/...>" เหลือแค่ "ngthai.com"
-            content = re.sub(r'\b(\w+\.\w{2,})(\s*<https?://[^>]+>)', r'\1', content)
-            
-            # ✅ ลบ ** ที่ล้อมหัวข้อซ้ำซ้อน
-            content = re.sub(r'(?m)^\*{1,2}(.*?)\*{1,2}$', r'\1', content)
-            
+
             return clean_output_text(content)
-        
+
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
             await asyncio.sleep(delay)
