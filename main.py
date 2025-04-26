@@ -153,12 +153,9 @@ async def process_message(user_id: int, text: str) -> str:
 
     return base_prompt + styles.get(style, styles["neutral"])
 
-async def send_long_reply(message: discord.Message, content: str):
-    chunks = [content[i:i + 2000] for i in range(0, len(content), 2000)]
-    for chunk in chunks:
-        await message.channel.send(chunk)
-
 async def smart_reply(message: discord.Message, content: str):
+    content = clean_output_text(content)
+
     if len(content) > 2000:
         await send_long_reply(message, content)
     else:
