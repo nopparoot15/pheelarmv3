@@ -58,9 +58,9 @@ def clean_output_text(text: str) -> str:
     # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
-    # ✅ ลบ ** ที่ไม่จับคู่ (เปิดแต่ไม่มีปิด / ปิดแต่ไม่มีเปิด)
-    text = re.sub(r'\*\*(?=\s|$)', '', text)
-    text = re.sub(r'(?<=^|\s)\*\*(?!\S)', '', text)
+    # ✅ ลบ ** เดี่ยว ๆ ที่ไม่มีคำอยู่ติด เช่น "** ", " **", หรือ "**\n"
+    text = re.sub(r'\*\*(\s|$)', r'\1', text)
+    text = re.sub(r'(^|\s)\*\*(?=\s)', r'\1', text)
 
     # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
     text = re.sub(r'$begin:math:display$([^$end:math:display$]+)\]$begin:math:text$(https?://[^$end:math:text$]+)\)', r'\1 <\2>', text)
