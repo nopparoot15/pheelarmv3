@@ -157,7 +157,11 @@ async def get_openai_response(
                     logger.info("🧠 Fallback ตอบจาก Google แล้ว")
 
             # ✅ แก้ markdown/lint ก่อน return
-            content = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", content)
+            content = re.sub(
+    r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)",
+    lambda m: f"{m.group(1)} <{m.group(2)}>",
+    content
+)
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
 
