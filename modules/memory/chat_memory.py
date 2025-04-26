@@ -3,31 +3,26 @@ import json
 from typing import List, Optional
 from redis.asyncio import Redis
 
-# ✅ Clean text output
-from modules.utils.cleaner import clean_output_text
-
-# ✅ เก็บแชทลง Redis แบบ list
+# ✅ ไม่ clean ก่อนเก็บ เพื่อเก็บ raw
 async def store_chat(redis_instance: Redis, user_id: int, message: dict) -> None:
-    if "response" in message:
-        message["response"] = clean_output_text(message["response"])
     key = f"chat:{user_id}"
     await redis_instance.rpush(key, json.dumps(message))
-    await redis_instance.expire(key, 86400)
+    await redis_instance.expire(key, 86400)  # เก็บได้ 1 วัน (ปรับได้)
 
-# ✅ ดึงแชทย้อนหลังจาก Redis
-async def get_chat_history(redis_instance: Redis, user_id: int, limit: int = 20) -> List[dict]:
+# ✅ ดึงแชทย้อนหลัง
+async def get_chat_history(redis_instance: Redis, user_id: int, limit: int = 5) -> List[dict]:
     key = f"chat:{user_id}"
     raw_messages = await redis_instance.lrange(key, -limit, -1)
     return [json.loads(m) for m in raw_messages]
 
-# ✅ สร้าง context สำหรับส่งให้ GPT
+# ✅ สร้างบริบท (context) ส่งให้ GPT
 async def build_chat_context(
     redis_instance: Redis,
     user_id: int,
     new_input: str,
     *,
     system_prompt: str,
-    limit: int = 3
+    limit: int = 5
 ) -> List[dict]:
     messages = [{"role": "system", "content": system_prompt}]
     history = await get_chat_history(redis_instance, user_id, limit=limit)
@@ -35,14 +30,15 @@ async def build_chat_context(
     for entry in history:
         q = entry.get("question")
         r = entry.get("response")
-        if q and r:
+        if q:
             messages.append({"role": "user", "content": q})
+        if r:
             messages.append({"role": "assistant", "content": r})
 
     messages.append({"role": "user", "content": new_input})
     return messages
 
-# ✅ ดึงคำถามล่าสุดจาก Redis
+# ✅ ดึงข้อความล่าสุด (ใช้ตรวจ last question ได้)
 async def get_previous_message(redis_instance: Redis, user_id: int) -> Optional[str]:
     key = f"chat:{user_id}"
     raw_messages = await redis_instance.lrange(key, -1, -1)
