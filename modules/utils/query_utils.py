@@ -101,11 +101,9 @@ async def get_openai_response(
         "ยังไม่มีเหตุการณ์เกิดขึ้นจริง ๆ", "ยังไม่สามารถคาดเดาเหตุการณ์ในอนาคตได้",
         "แนะนำให้ติดตามข่าวสาร", "แนะนำให้ติดตามข่าว", "แนะนำให้ติดตามสื่อมวลชน",
         "ควรติดตามจากหน่วยงานที่เกี่ยวข้อง", "ลองตรวจสอบกับกรมอุตุนิยมวิทยา",
-        "ตรวจสอบเว็บไซต์ข่าว", "ยังไม่สามารถยืนยันได้แน่ชัด", 
+        "ตรวจสอบเว็บไซต์ข่าว", "ยังไม่สามารถยืนยันได้แน่ชัด",
         "ถ้ามีอะไรเพิ่มเติมที่อยากรู้ บอกได้เลย",
     ]
-
-    did_fallback = False
 
     for attempt in range(max_retries):
         try:
@@ -121,48 +119,44 @@ async def get_openai_response(
             )
 
             content = response.choices[0].message.content.strip()
-            response_text = content.lower()
+            lowered = content.lower()
 
-            if use_web_fallback and not did_fallback and any(phrase in response_text for phrase in fallback_phrases):
+            if use_web_fallback and any(p in lowered for p in fallback_phrases):
                 query = messages[-1]["content"]
                 if any(botname in query.lower() for botname in ["พี่หลาม", "พรี่หลาม", "คุณหลาม", "gpt", "บอท"]):
                     logger.info("🧠 เป็นคำถามเกี่ยวกับบอท ไม่ fallback ไปหา Google")
                 else:
-                    logger.info(f"🔍 GPT ไม่มั่นใจ, กำลังค้น Google ด้วยคำว่า: {query}")
-                    raw_results = await search_google(query, settings)
-                    summarized_text = summarize_google_results(raw_results)
+                    logger.info(f"🔍 GPT ไม่มั่นใจ → fallback ไปหา Google: {query}")
+                    search_results = await search_google(query, settings)
+                    summary = summarize_google_results(search_results)
 
                     messages.append({
                         "role": "function",
                         "name": "search_google",
-                        "content": summarized_text
+                        "content": summary
                     })
 
-                    logger.info(f"🔁 Fallback with model {fallback_model}")
-                    did_fallback = True
+                    fallback_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                "เรียบเรียงข้อมูลจากเว็บให้เป็นข้อ ๆ หรือหัวข้อย่อย ๆ อย่างเป็นระเบียบ "
+                                "หลีกเลี่ยงการพูดวกวนหรือสรุปคลุมเครือ ถ้าเป็นรายการควรใช้ bullet หรือเลขลำดับ"
+                            )
+                        }
+                    ] + messages[-5:]
 
-                    fallback_messages = messages[-5:]
-                    if fallback_model.endswith("-search-preview"):
-                        fallback_messages = [
-                            {
-                                "role": "system",
-                                "content": "ขอสรุปเนื้อหาสั้น ๆ ไม่เกิน 5 บรรทัด ตรงประเด็นหลัก หลีกเลี่ยงการอธิบายยืดยาวหรือขยายความเพิ่มเติม"
-                            }
-                        ] + fallback_messages
-
-                    second_response = await openai_client.chat.completions.create(
+                    response = await openai_client.chat.completions.create(
                         model=fallback_model,
                         messages=fallback_messages,
                         **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
-                        max_tokens=500
+                        max_tokens=800,
                     )
 
-                    content = second_response.choices[0].message.content.strip()
-                    logger.info("🧠 GPT ตอบจากผลลัพธ์ Google")
-            else:
-                logger.info("🧠 GPT ตอบเองได้ ไม่ต้องใช้ Google")
+                    content = response.choices[0].message.content.strip()
+                    logger.info("🧠 Fallback ตอบจาก Google แล้ว")
 
-            # ✅ จัดการลิงก์: เก็บไว้แต่ไม่ให้ preview
+            # ✅ แก้ markdown/lint ก่อน return
             content = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 <\2>", content)
             content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
