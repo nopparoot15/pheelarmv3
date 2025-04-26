@@ -45,6 +45,9 @@ def clean_output_text(text: str) -> str:
     """จัดข้อความจาก GPT ให้อ่านง่ายและปลอดภัยจาก markdown error"""
     text, saved_blocks = preserve_blocks(text)
 
+    # ✅ บังคับขึ้นบรรทัดใหม่ก่อนเลขข้อ (1. 2. 3. 10.)
+    text = re.sub(r'(?<![\n\d])\s*(\d+\.)\s+', r'\n\n\1 ', text)
+    
     # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่เกินจำเป็น
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
