@@ -45,9 +45,6 @@ def clean_output_text(text: str) -> str:
     """จัดข้อความจาก GPT ให้อ่านง่ายและปลอดภัยจาก markdown error"""
     text, saved_blocks = preserve_blocks(text)
 
-    # ✅ บังคับขึ้นบรรทัดใหม่ก่อนเลขข้อ (1. 2. 3. 10.)
-    text = re.sub(r'(?<![\n\d])\s*(\d+\.)\s+', r'\n\n\1 ', text)
-    
     # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่เกินจำเป็น
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -58,26 +55,31 @@ def clean_output_text(text: str) -> str:
     # ✅ bullet: *, -, • → • (ถ้าขึ้นต้นบรรทัด)
     text = re.sub(r'(?m)^[\*\-\u2022]\s+', '• ', text)
 
-    # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown เพี้ยน
+    # ✅ เชื่อมตัวเลขกับเนื้อหา เช่น 1.\nเนื้อหา → 1. เนื้อหา
+    text = re.sub(r'(?m)^(\d+\.)\s*\n+(\S)', r'\1 \2', text)
+
+    # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown พัง
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
-    # ✅ ลบ ** เดี่ยว ๆ ที่ไม่มีคำอยู่ติด เช่น "** ", " **", หรือ "**\n"
+    # ✅ ลบ ** เดี่ยว ๆ ที่ไม่มีคำติด เช่น "** ", " **", หรือ "**\n"
     text = re.sub(r'\*\*(\s|$)', r'\1', text)
     text = re.sub(r'(^|\s)\*\*(?=\s)', r'\1', text)
 
-    # ✅ ป้องกัน markdown error จากลิงก์: [text](url) → text <url>
+    # ✅ แก้ลิงก์ markdown: [text](url) → text <url>
     text = re.sub(r'$begin:math:display$([^$end:math:display$]+)\]$begin:math:text$(https?://[^$end:math:text$]+)\)', r'\1 <\2>', text)
-    text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
 
-    # ✅ ถ้าเจอรูปแบบ "ngthai.com <https://ngthai.com/...>" → เอาแค่ <ลิงก์>
-    text = re.sub(r'(?m)^(\s*)[^\s<>]+\.(com|org|net|go\.th)\s+<((https?://)[^>\s]+)>', r'\1<\3>', text)
+    # ✅ เอา label หน้า URL ที่ซ้ำออก เช่น tnnthailand.com <https://tnnthailand.com/...> → <...>
+    text = re.sub(r'(?m)^(\s*)[^\s<>]+\.(com|net|org|go\.th)\s+<((https?://)[^>\s]+)>', r'\1<\3>', text)
+
+    # ✅ ป้องกัน markdown error ลิงก์หลุด
+    text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
 
     # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
     text = re.sub(fr'(?<!{safe_ends})\n(?!{safe_starts}|\n)', ' ', text)
 
-    # ✅ แบ่งย่อหน้าให้สมดุล (~40 คำ/ย่อหน้า)
+    # ✅ แบ่งย่อหน้า (~40 คำ/ย่อหน้า)
     sentences = re.split(r'(?<=[.!?])\s+', text)
     new_text, current_length = '', 0
     for sentence in sentences:
@@ -91,16 +93,25 @@ def clean_output_text(text: str) -> str:
 
     text = restore_blocks(new_text, saved_blocks)
 
-    # ✅ เชื่อมเลขลำดับ เช่น "6.\nเนื้อหา" → "6. เนื้อหา"
-    text = re.sub(r'(?m)^(\d\.)\s*\n+(\S)', r'\1 \2', text)
-    
-    # ✅ ตัด label หน้า URL ถ้าเหมือนโดเมนของลิงก์นั้น เช่น tnnthailand.com <https://tnnthailand.com/...> → <...>
-    text = re.sub(
-        r'(?m)^(\s*)([^\s<>]+\.(?:com|net|org|go\.th))\s+<((https?://\2[^\s<>]*))>',
-        r'\1<\3>',
-        text
-    )
-    return text.strip()
+    # ✅ หลังรายการ list (1. 2. 3. หรือ •) → ถ้าเจอข้อความใหม่ที่ไม่ใช่ list ให้เว้นบรรทัด
+    lines = text.splitlines()
+    final_lines = []
+    inside_list = False
+
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r'^\d+\.', stripped) or stripped.startswith('•'):
+            inside_list = True
+            final_lines.append(stripped)
+        elif stripped:
+            if inside_list:
+                final_lines.append('')  # เว้นบรรทัด
+                inside_list = False
+            final_lines.append(stripped)
+        else:
+            final_lines.append('')
+
+    return '\n'.join(final_lines).strip()
 
 def clean_url(url: Optional[str]) -> str:
     """ลบ \n \r ออกจาก URL"""
