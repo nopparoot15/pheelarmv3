@@ -154,24 +154,41 @@ async def process_message(user_id: int, text: str) -> str:
     return base_prompt + styles.get(style, styles["neutral"])
 
 async def smart_reply(message: discord.Message, content: str):
-    cleaned = clean_output_text(content)
-    chunks = [cleaned[i:i + 2000] for i in range(0, len(cleaned), 2000)]
+    content = clean_output_text(content)
 
-    for idx, chunk in enumerate(chunks):
-        print(f"✂️ Chunk {idx + 1}/{len(chunks)} - length: {len(chunk)}")
+    # ลบ markdown แบบ [text](url) → text <url>
+    content = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1 <\2>', content)
+
+    # ลบลิงก์เปล่า ๆ ที่ยังไม่ถูกครอบ < >
+    content = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', content)
+
+    # ลบ ** เดี่ยว ๆ ที่หลุดมาจาก fallback
+    content = re.sub(r'(?<!\*)\*\*(?!\*)', '', content)
+
+    # เช็คความยาว
+    if len(content) > 2000:
+        await send_long_reply(message, content)
+    else:
         try:
-            if idx == 0:
-                await message.reply(chunk)
-            else:
-                await message.channel.send(chunk)
+            await message.reply(content)
         except discord.HTTPException:
-            await message.channel.send(chunk)
+            await message.channel.send(content)
+
 
 async def send_long_reply(message: discord.Message, content: str):
-    chunks = [content[i:i + 2000] for i in range(0, len(content), 2000)]
-    for idx, chunk in enumerate(chunks):
-        print(f"✂️ Chunk {idx + 1}/{len(chunks)} - length: {len(chunk)}")
-        await message.channel.send(chunk)
+    chunks = re.split(r'(?<=\n\n)', content)  # แยกด้วยย่อหน้าแทนตัดคำ
+    current_chunk = ""
+
+    for paragraph in chunks:
+        if len(current_chunk) + len(paragraph) < 2000:
+            current_chunk += paragraph
+        else:
+            if current_chunk:
+                await message.channel.send(current_chunk.strip())
+            current_chunk = paragraph
+
+    if current_chunk.strip():
+        await message.channel.send(current_chunk.strip())
         
 @bot.event
 async def on_ready():
