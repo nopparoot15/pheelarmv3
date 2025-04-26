@@ -97,6 +97,9 @@ def clean_output_text(text: str) -> str:
 
     text = restore_blocks(new_text, saved_blocks)
 
+    # ✅ เว้นบรรทัดให้ข้อที่มีเลข แต่ยังไม่มีเนื้อหาตามหลัง (เพื่อไม่ให้ติดกัน)
+    text = re.sub(r'(?m)^(\d+\.)$', r'\1\n', text)
+    
     # ✅ หลังรายการ list (1. 2. 3. หรือ •) → ถ้าเจอข้อความใหม่ที่ไม่ใช่ list ให้เว้นบรรทัด
     lines = text.splitlines()
     final_lines = []
