@@ -253,7 +253,7 @@ async def on_message(message: discord.Message):
 
         await store_chat(redis_instance, message.author.id, {
             "question": text,
-            "response": formatted
+            "response": cleaned
         })
 
 # ✅ Entry point
