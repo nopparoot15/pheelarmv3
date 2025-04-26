@@ -44,11 +44,12 @@ def restore_blocks(text: str, blocks: dict) -> str:
 def clean_output_text(text: str) -> str:
     """จัดข้อความจาก GPT ให้อ่านง่ายและปลอดภัยจาก markdown error"""
     text, saved_blocks = preserve_blocks(text)
-    
+
     # ✅ เชื่อมเลขข้อกับข้อความ ถ้ามีบรรทัดว่างแทรก
     text = re.sub(r'(?m)^(\d+)\.\s*\n+(\S)', r'\1. \2', text)
     # ✅ ถ้าไม่มีข้อความตามหลังเลขข้อ ให้เว้นว่างไว้เฉย ๆ เพื่อความสวยงาม
     text = re.sub(r'(?m)^(\d+)\.\s*$', r'\1.\n', text)
+
     # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่เกินจำเป็น
     text = re.sub(r'[ \t]+\n', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -59,9 +60,6 @@ def clean_output_text(text: str) -> str:
     # ✅ bullet: *, -, • → • (ถ้าขึ้นต้นบรรทัด)
     text = re.sub(r'(?m)^[\*\-\u2022]\s+', '• ', text)
 
-    # ✅ เชื่อมตัวเลขกับเนื้อหา เช่น 1.\nเนื้อหา → 1. เนื้อหา
-    text = re.sub(r'(?m)^(\d+\.)\s*\n+(\S)', r'\1 \2', text)
-
     # ✅ ลบ * เดี่ยว ๆ ที่อาจทำ markdown พัง
     text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
 
@@ -70,7 +68,7 @@ def clean_output_text(text: str) -> str:
     text = re.sub(r'(^|\s)\*\*(?=\s)', r'\1', text)
 
     # ✅ แก้ลิงก์ markdown: [text](url) → text <url>
-    text = re.sub(r'$begin:math:display$([^$end:math:display$]+)\]$begin:math:text$(https?://[^$end:math:text$]+)\)', r'\1 <\2>', text)
+    text = re.sub(r'$begin:math:display$([^\\[$end:math:display$]+?)\]$begin:math:text$(https?://[^\\s$end:math:text$]+)\)', r'\1 <\2>', text)
 
     # ✅ เอา label หน้า URL ที่ซ้ำออก เช่น tnnthailand.com <https://tnnthailand.com/...> → <...>
     text = re.sub(r'(?m)^(\s*)[^\s<>]+\.(com|net|org|go\.th)\s+<((https?://)[^>\s]+)>', r'\1<\3>', text)
@@ -97,9 +95,9 @@ def clean_output_text(text: str) -> str:
 
     text = restore_blocks(new_text, saved_blocks)
 
-    # ✅ เว้นบรรทัดให้ข้อที่มีเลข แต่ยังไม่มีเนื้อหาตามหลัง (เพื่อไม่ให้ติดกัน)
-    text = re.sub(r'(?m)^(\d+\.)\s*$', r'\1\n', text)
-    
+    # ✅ ย้ายเนื้อหาขึ้นมาหลังข้อเลขที่ว่าง
+    text = re.sub(r'(?m)^(\d+\.)\n+(\S)', r'\1 \2', text)
+
     # ✅ หลังรายการ list (1. 2. 3. หรือ •) → ถ้าเจอข้อความใหม่ที่ไม่ใช่ list ให้เว้นบรรทัด
     lines = text.splitlines()
     final_lines = []
