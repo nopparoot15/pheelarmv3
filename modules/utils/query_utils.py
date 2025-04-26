@@ -155,11 +155,11 @@ async def get_openai_response(
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้อง fallback")
 
-            # ✅ ล้างลิงก์ markdown
-            content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1 <\2>", content)
-            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
-            content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
-
+            # ✅ แก้ markdown/lint ก่อน return
+            content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1", content)  # ตัด markdown ลิงก์
+            content = re.sub(r"https?://\S+", "", content)  # ตัดลิงก์ดิบ
+            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)  # ตัดหัวอ้างอิง
+            
             return clean_output_text(content)
 
         except Exception as e:
