@@ -111,7 +111,7 @@ async def get_openai_response(
             response = await openai_client.chat.completions.create(
                 model=model,
                 messages=messages[-3:],
-                max_tokens=600,
+                max_tokens=1500,
                 temperature=0.6,
                 top_p=1.0,
                 frequency_penalty=0.2,
@@ -150,7 +150,7 @@ async def get_openai_response(
                         model=fallback_model,
                         messages=fallback_messages,
                         **({"web_search_options": {}} if fallback_model.endswith("-search-preview") else {}),
-                        max_tokens=800,
+                        max_tokens=1500,
                     )
 
                     content = response.choices[0].message.content.strip()
