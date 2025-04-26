@@ -156,18 +156,18 @@ async def get_openai_response(
                     content = response.choices[0].message.content.strip()
                     logger.info("🧠 Fallback ตอบจาก Google แล้ว")
 
-        # ✅ แก้ markdown/lint ก่อน return
-        content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1 <\2>", content)
-        content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
-        content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
-        
-        # ✅ ลบลิงก์ซ้อน เช่น "ngthai.com <https://ngthai.com/...>" เหลือแค่ "ngthai.com"
-        content = re.sub(r'\b(\w+\.\w{2,})(\s*<https?://[^>]+>)', r'\1', content)
-        
-        # ✅ ลบ ** ที่ล้อมหัวข้อซ้ำซ้อน
-        content = re.sub(r'(?m)^\*{1,2}(.*?)\*{1,2}$', r'\1', content)
-        
-        return clean_output_text(content)
+            # ✅ แก้ markdown/lint ก่อน return
+            content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1 <\2>", content)
+            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
+            content = re.sub(r"(https?://\S+)", lambda m: f"<{m.group(1)}>" if not m.group(1).startswith("<") else m.group(1), content)
+            
+            # ✅ ลบลิงก์ซ้อน เช่น "ngthai.com <https://ngthai.com/...>" เหลือแค่ "ngthai.com"
+            content = re.sub(r'\b(\w+\.\w{2,})(\s*<https?://[^>]+>)', r'\1', content)
+            
+            # ✅ ลบ ** ที่ล้อมหัวข้อซ้ำซ้อน
+            content = re.sub(r'(?m)^\*{1,2}(.*?)\*{1,2}$', r'\1', content)
+            
+            return clean_output_text(content)
         
         except Exception as e:
             logger.error(f"❌ get_openai_response error: {e}")
