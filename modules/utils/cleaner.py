@@ -45,8 +45,9 @@ def clean_output_text(text: str) -> str:
     """จัดข้อความจาก GPT ให้อ่านง่ายและปลอดภัยจาก markdown error"""
     text, saved_blocks = preserve_blocks(text)
     
-    # ✅ เชื่อมเลขข้อกับข้อความถ้ามีบรรทัดว่างแทรก
-    text = re.sub(r'(?m)^(\d+)\.\s*\n+(\S)', r'\1. \2', text)
+    # ✅ เชื่อมเลขข้อกับข้อความ ถ้าไม่มีข้อความให้บังคับเว้นว่าง
+    text = re.sub(r'(?m)^(\d+)\.\s*\n(?!\d)', r'\1. <ยังไม่มีเนื้อหา>\n', text)
+    text = re.sub(r'(?m)^(\d+)\.\s*(\S)', r'\1. \2', text)
 
     # ✅ ลบช่องว่างท้ายบรรทัด และลดการขึ้นบรรทัดใหม่เกินจำเป็น
     text = re.sub(r'[ \t]+\n', '\n', text)
