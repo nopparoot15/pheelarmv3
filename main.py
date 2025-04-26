@@ -154,16 +154,22 @@ async def process_message(user_id: int, text: str) -> str:
     return base_prompt + styles.get(style, styles["neutral"])
 
 async def smart_reply(message: discord.Message, content: str):
-    content = clean_output_text(content)
+    cleaned = clean_output_text(content)
 
-    if len(content) > 2000:
-        await send_long_reply(message, content)
+    if len(cleaned) > 2000:
+        await send_long_reply(message, cleaned)
     else:
         try:
-            await message.reply(content)
+            await message.reply(cleaned)
         except discord.HTTPException:
-            await message.channel.send(content)
+            await message.channel.send(cleaned)
 
+async def send_long_reply(message: discord.Message, content: str):
+    chunks = [content[i:i + 2000] for i in range(0, len(content), 2000)]
+    for idx, chunk in enumerate(chunks):
+        print(f"✂️ Chunk {idx + 1}/{len(chunks)} - length: {len(chunk)}")
+        await message.channel.send(chunk)
+        
 @bot.event
 async def on_ready():
     await setup_connection()
