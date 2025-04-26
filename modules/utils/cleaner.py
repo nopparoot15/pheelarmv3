@@ -66,6 +66,9 @@ def clean_output_text(text: str) -> str:
     text = re.sub(r'$begin:math:display$([^$end:math:display$]+)\]$begin:math:text$(https?://[^$end:math:text$]+)\)', r'\1 <\2>', text)
     text = re.sub(r'(?<!<)(https?://\S+)(?!>)', r'<\1>', text)
 
+    # ✅ ถ้าเจอรูปแบบ "ngthai.com <https://ngthai.com/...>" → เอาแค่ <ลิงก์>
+    text = re.sub(r'(?m)^(\s*)[^\s<>]+\.(com|org|net|go\.th)\s+<((https?://)[^>\s]+)>', r'\1<\3>', text)
+
     # ✅ เชื่อมบรรทัดที่ไม่ควรตัด
     safe_starts = r'[\-\*\u2022#>\|0-9]|<:|:.*?:'
     safe_ends = r'[A-Za-z0-9ก-๙\.\!\?\)]'
