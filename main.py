@@ -34,6 +34,7 @@ from modules.features.google_search import search_google, search_image
 from modules.tarot.tarot_reading import draw_cards_and_interpret_by_topic
 from modules.nlp.message_matcher import match_topic
 from modules.memory.chat_memory import store_chat, build_chat_context_smart, get_chat_history
+from modules.utils.token_counter import count_tokens
 from modules.utils.cleaner import clean_output_text, search_tool, format_response_markdown, clean_url
 from modules.utils.thai_to_eng_city import convert_thai_to_english_city
 from modules.utils.thai_datetime import get_thai_datetime_now, format_thai_datetime
