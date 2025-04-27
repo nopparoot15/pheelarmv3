@@ -255,7 +255,7 @@ async def on_message(message: discord.Message):
         system_prompt=system_prompt,
         model=model,
         max_tokens_context=1000,
-        initial_limit=6
+        initial_limit=4
     )
 
     async with message.channel.typing():
