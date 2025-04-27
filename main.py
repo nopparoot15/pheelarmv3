@@ -258,10 +258,6 @@ async def on_message(message: discord.Message):
         initial_limit=6
     )
 
-    # ✅ log token ที่ใช้
-    token_used = count_tokens(messages, model=model)
-    logger.info(f"🧮 Token used (input): {token_used}")
-
     async with message.channel.typing():
         reply = await get_openai_response(
             messages,
