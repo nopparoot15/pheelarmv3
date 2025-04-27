@@ -45,7 +45,6 @@ from modules.utils.query_utils import (
 from modules.core.logger import logger
 from modules.core.openai_client import client as openai_client
 from modules.utils.query_utils import get_openai_response
-from modules.personality.tone_manager import detect_tone
 
 # ✅ Load environment variables
 load_dotenv()
