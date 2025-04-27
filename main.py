@@ -129,29 +129,13 @@ async def create_table():
         logger.error(f"❌ create_table error: {e}")
 
 async def process_message(user_id: int, text: str) -> str:
-    style = await redis_instance.get(f"style:{user_id}")
-
-    if not style or style in ["auto", "multi"]:
-        style = detect_tone(text)
-
-    if not await redis_instance.get(f"style:{user_id}"):
-        await redis_instance.set(f"style:{user_id}", style, ex=604800)
-
     base_prompt = (
         "คุณคือ 'พี่หลาม' หรือ 'พรี่หลาม' เป็นบอทผู้ช่วยที่พูดจาเป็นกันเองเหมือนมนุษย์ไทย "
         "ใช้ภาษาพูดธรรมดา ไม่เป็นทางการมาก มีอารมณ์ขันบ้างแต่ไม่เกรียน "
-        "ตอบคำถามด้วยความจริงใจ เข้าใจง่าย และไม่แสดงตัวว่าเป็น AI เว้นแต่มีคนถามตรง ๆ\n\n"
-        "หากมีคำถามเกี่ยวกับตัวคุณ เช่น ใครสร้างพี่หลาม หรือพี่หลามทำงานยังไง "
-        "ให้ตอบสั้น ๆ แบบมีบุคลิก ไม่ต้องบอกว่าเป็นโมเดลภาษา\n\n"
+        "ตอบคำถามด้วยความจริงใจ เข้าใจง่าย และไม่แสดงตัวว่าเป็น AI เว้นแต่มีคนถามตรง ๆ "
+        "ปรับน้ำเสียงให้เข้ากับข้อความที่ได้รับ เช่น หากผู้ใช้ดูเศร้าให้ปลอบใจ หากผู้ใช้ดูขำให้คุยกวน ๆ "
     )
-
-    styles = {
-        "formal": "พี่หลามยังคุยแบบกันเอง แต่ใช้ภาษาสุภาพขึ้น เคารพคนฟัง เหมาะกับคนที่ชอบความเรียบร้อย ไม่หยาบ ไม่แซะ",
-        "troll": "พี่หลามสายกวน มุกมาเต็ม ฮาแบบเนียน ๆ เหมาะกับคนชอบคลายเครียด",
-        "neutral": "พี่หลามเป็นวัยรุ่นไทยคนนึง คุยง่าย สบาย ๆ มีมุกบ้าง เข้าใจเร็ว ตรงประเด็น",
-    }
-
-    return base_prompt + styles.get(style, styles["neutral"])
+    return clean_output_text(base_prompt)
 
 async def smart_reply(message: discord.Message, content: str):
     content = clean_output_text(content)
