@@ -1,12 +1,11 @@
 import re
 import asyncio
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from modules.utils.cleaner import clean_output_text, clean_url, search_tool
+from modules.utils.cleaner import clean_output_text
 from modules.features.google_search import (
     search_google,
     summarize_google_results,
-    format_google_results
 )
 from modules.core.logger import logger
 from modules.core.openai_client import client as openai_client
@@ -30,7 +29,6 @@ MUST_SEARCH_KEYWORDS = [
     "เหตุผล", "ที่มา", "อันดับ", "สด", "เทรนด์", "ยอดนิยม", "เปิดตัว", "ประกาศ", "โปรแกรม",
     "บอลวันนี้", "ผลบอล", "หวยออก", "หุ้น", "ดัชนี", "ชื่อเต็มของ", "update"
 ]
-
 
 def is_greeting(text: str) -> bool:
     return any(greet in text.lower() for greet in COMMON_GREETINGS)
@@ -120,6 +118,9 @@ async def get_openai_response(
                 presence_penalty=0.3,
             )
 
+            # ✅ Log token usage
+            logger.info(f"🧮 Tokens | Input: {response.usage.prompt_tokens} | Output: {response.usage.completion_tokens} | Total: {response.usage.total_tokens}")
+
             content = response.choices[0].message.content.strip()
             response_text = content.lower()
 
@@ -141,7 +142,6 @@ async def get_openai_response(
                     logger.info(f"🔁 Fallback with model {fallback_model}")
                     did_fallback = True
 
-                    # ❌ ไม่ต้องยัด system prompt บังคับย่ออีก
                     fallback_messages = messages[-5:]
 
                     second_response = await openai_client.chat.completions.create(
@@ -150,15 +150,17 @@ async def get_openai_response(
                         max_tokens=1500
                     )
 
+                    logger.info(f"🧮 Tokens | Input: {second_response.usage.prompt_tokens} | Output: {second_response.usage.completion_tokens} | Total: {second_response.usage.total_tokens}")
+
                     content = second_response.choices[0].message.content.strip()
                     logger.info("🧠 Fallback ตอบจาก Google แล้ว")
             else:
                 logger.info("🧠 GPT ตอบเองได้ ไม่ต้อง fallback")
 
-            # ✅ แก้ markdown/lint ก่อน return
-            content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1", content)  # ตัด markdown ลิงก์
-            content = re.sub(r"https?://\S+", "", content)  # ตัดลิงก์ดิบ
-            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)  # ตัดหัวอ้างอิง
+            # ✅ Clean output text
+            content = re.sub(r"\[([^\[\]]+?)\]\((https?://[^\s\)]+)\)", r"\1", content)
+            content = re.sub(r"https?://\S+", "", content)
+            content = re.sub(r"📚 แหล่งอ้างอิง:\s*", "", content)
             
             return clean_output_text(content)
 
