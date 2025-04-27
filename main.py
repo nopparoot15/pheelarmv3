@@ -188,11 +188,13 @@ async def on_message(message: discord.Message):
     text = message.content.strip()
     lowered = text.lower()
 
-    # ✅ จับกลุ่ม topic
+    # ✅ จับกลุ่ม topic (เช่นรูป, ข่าว, หวย ฯลฯ)
     topic = match_topic(lowered)
     if topic == "image":
         query = re.sub(r"^(ดูรูป|ค้นรูป|หารูป|ขอรูป)[:,\s]*", "", lowered)
-        query = query or await redis_instance.get(f"last_image_query:{message.author.id}")
+        if not query:
+            prev_query = await redis_instance.get(f"last_image_query:{message.author.id}")
+            query = prev_query
         if query:
             await redis_instance.set(f"last_image_query:{message.author.id}", query, ex=300)
             image_url = await search_image(query, settings)
@@ -237,32 +239,48 @@ async def on_message(message: discord.Message):
     elif any(kw in lowered for kw in ["กี่โมง", "เวลากี่โมง"]):
         return await smart_reply(message, f"🕒 ขณะนี้คือ {get_thai_datetime_now()}")
 
-    # 🧠 ตอบด้วย GPT ตามระบบหลัก
+    # 🧠 โหมดปกติ (ตอบด้วย GPT)
     model = "gpt-4o-mini"
     system_prompt = await process_message(message.author.id, text)
     timezone = await redis_instance.get(f"timezone:{message.author.id}") or "Asia/Bangkok"
     now = datetime.now(pytz.timezone(timezone))
     system_prompt += f"\n\n⏰ timezone: {timezone}\n🕒 {format_thai_datetime(now)}"
 
-    messages = await build_chat_context(
-        redis_instance, message.author.id, text, system_prompt=system_prompt, limit=3
+    # ✅ ดึง context แบบประหยัด token
+    messages = await build_chat_context_smart(
+        redis_instance,
+        message.author.id,
+        text,
+        system_prompt=system_prompt,
+        model=model,
+        max_tokens_context=1000,
+        initial_limit=6
     )
+
+    # ✅ log token ที่ใช้
+    token_used = count_tokens(messages, model=model)
+    logger.info(f"🧮 Token used (input): {token_used}")
 
     async with message.channel.typing():
         reply = await get_openai_response(
-            messages, settings=settings, model=model,
-            use_web_fallback=True, fallback_model="gpt-4o-mini-search-preview"
+            messages,
+            settings=settings,
+            model=model,
+            use_web_fallback=True,
+            fallback_model="gpt-4o-mini-search-preview"
         )
 
         if not reply:
             return await smart_reply(message, "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า")
 
+        # ✅ clean output ก่อนส่งแค่ตอนโชว์
         cleaned = clean_output_text(reply)
         await smart_reply(message, cleaned)
 
+        # ✅ เก็บ raw chat ลง Redis
         await store_chat(redis_instance, message.author.id, {
             "question": text,
-            "response": cleaned
+            "response": reply
         })
 
 # ✅ Entry point
