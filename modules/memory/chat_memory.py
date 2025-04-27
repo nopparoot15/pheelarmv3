@@ -22,7 +22,7 @@ async def build_chat_context(
     new_input: str,
     *,
     system_prompt: str,
-    limit: int = 5
+    limit: int = 3
 ) -> List[dict]:
     messages = [{"role": "system", "content": system_prompt}]
     history = await get_chat_history(redis_instance, user_id, limit=limit)
