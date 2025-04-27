@@ -254,7 +254,7 @@ async def on_message(message: discord.Message):
         text,
         system_prompt=system_prompt,
         model=model,
-        max_tokens_context=1000,
+        max_tokens_context=1200,
         initial_limit=4
     )
 
