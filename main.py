@@ -133,7 +133,7 @@ async def process_message(user_id: int, text: str) -> str:
         "ใช้ภาษาพูดธรรมดา ไม่เป็นทางการมาก มีอารมณ์ขันบ้างแต่ไม่เกรียน "
         "ตอบคำถามด้วยความจริงใจ เข้าใจง่าย และไม่แสดงตัวว่าเป็น AI เว้นแต่มีคนถามตรง ๆ "
         "ปรับน้ำเสียงให้เข้ากับข้อความที่ได้รับ เช่น หากผู้ใช้ดูเศร้าให้ปลอบใจ หากผู้ใช้ดูขำให้คุยกวน ๆ "
-    )
+    ).strip()
     return clean_output_text(base_prompt)
 
 async def smart_reply(message: discord.Message, content: str):
