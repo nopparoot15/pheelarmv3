@@ -138,6 +138,7 @@ async def process_message(user_id: int, text: str) -> str:
     return clean_output_text(base_prompt)
 
 async def smart_reply(message: discord.Message, content: str):
+    # ✅ เตรียมข้อความก่อน ไม่ await แทรกบ่อย
     content = clean_output_text(content)
 
     # ลบ markdown แบบ [text](url) → text <url>
@@ -149,7 +150,6 @@ async def smart_reply(message: discord.Message, content: str):
     # ลบ ** เดี่ยว ๆ ที่หลุดมาจาก fallback
     content = re.sub(r'(?<!\*)\*\*(?!\*)', '', content)
 
-    # เช็คความยาว
     if len(content) > 2000:
         await send_long_reply(message, content)
     else:
@@ -158,9 +158,9 @@ async def smart_reply(message: discord.Message, content: str):
         except discord.HTTPException:
             await message.channel.send(content)
 
-
 async def send_long_reply(message: discord.Message, content: str):
-    chunks = re.split(r'(?<=\n\n)', content)  # แยกด้วยย่อหน้าแทนตัดคำ
+    # แยกข้อความด้วยสองย่อหน้า จะได้ส่งได้เนียนกว่า
+    chunks = re.split(r'(?<=\n\n)', content)
     current_chunk = ""
 
     for paragraph in chunks:
@@ -189,8 +189,9 @@ async def on_message(message: discord.Message):
     text = message.content.strip()
     lowered = text.lower()
 
-    # ✅ จับกลุ่ม topic (เช่นรูป, ข่าว, หวย ฯลฯ)
     topic = match_topic(lowered)
+    
+    # ✅ handle topic ปกติ (ไม่เกี่ยวกับ GPT)
     if topic == "image":
         query = re.sub(r"^(ดูรูป|ค้นรูป|หารูป|ขอรูป)[:,\s]*", "", lowered)
         if not query:
@@ -240,14 +241,13 @@ async def on_message(message: discord.Message):
     elif any(kw in lowered for kw in ["กี่โมง", "เวลากี่โมง"]):
         return await smart_reply(message, f"🕒 ขณะนี้คือ {get_thai_datetime_now()}")
 
-    # 🧠 โหมดปกติ (ตอบด้วย GPT)
+    # 🧠 Mode GPT (Optimize GPT ตรงนี้)
     model = "gpt-4o-mini"
     system_prompt = await process_message(message.author.id, text)
     timezone = await redis_instance.get(f"timezone:{message.author.id}") or "Asia/Bangkok"
     now = datetime.now(pytz.timezone(timezone))
     system_prompt += f"\n\n⏰ timezone: {timezone}\n🕒 {format_thai_datetime(now)}"
 
-    # ✅ ดึง context แบบประหยัด token
     messages = await build_chat_context_smart(
         redis_instance,
         message.author.id,
@@ -259,22 +259,25 @@ async def on_message(message: discord.Message):
     )
 
     async with message.channel.typing():
-        reply = await get_openai_response(
-            messages,
-            settings=settings,
-            model=model,
-            use_web_fallback=True,
-            fallback_model="gpt-4o-mini-search-preview"
+        task_reply = asyncio.create_task(
+            get_openai_response(
+                messages,
+                settings=settings,
+                model=model,
+                use_web_fallback=True,
+                fallback_model="gpt-4o-mini-search-preview"
+            )
         )
+
+        # ขณะรอ GPT ตอบ ทำอย่างอื่นได้ (ถ้ามี)
+        reply = await task_reply
 
         if not reply:
             return await smart_reply(message, "⚠️ พี่หลามงงเลย ตอบไม่ได้จริง ๆ จ้า")
 
-        # ✅ clean output ก่อนส่งแค่ตอนโชว์
         cleaned = clean_output_text(reply)
         await smart_reply(message, cleaned)
 
-        # ✅ เก็บ raw chat ลง Redis
         await store_chat(redis_instance, message.author.id, {
             "question": text,
             "response": reply
